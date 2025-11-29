@@ -1,0 +1,43 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - basketball-frontend:/usr/share/nginx/basketball:ro
+      # - commuzz-frontend:/usr/share/nginx/commuzz:ro  # 추후 활성화
+    depends_on:
+      - certbot
+    restart: unless-stopped
+    networks:
+      - shared-network
+
+  certbot:
+    build:
+      context: ./certbot
+    container_name: nginx-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+    command: >
+      sh -c "chmod 600 /root/.secrets/duckdns.ini && \
+             while true; do \
+               certbot renew --quiet; \
+               sleep 12h; \
+             done"
+    networks:
+      - shared-network
+    dns:
+      - 8.8.8.8
+
+networks:
+  shared-network:
+    external: true
+
+volumes:
+  basketball-frontend:
+    external: true
+    name: basketball-scoreboard_frontend-build

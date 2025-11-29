@@ -1,0 +1,5 @@
+# DuckDNS API token
+# Replace this with your actual DuckDNS token from your DuckDNS account page.
+# After copying this file to duckdns.ini, make sure to set proper permissions:
+#   chmod 600 duckdns.ini
+dns_duckdns_token = YOUR_DUCKDNS_TOKEN_HERE

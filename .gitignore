@@ -1,0 +1,11 @@
+# SSL certificates (sensitive)
+certbot/conf/
+
+# DuckDNS credentials (sensitive)
+certbot/duckdns.ini
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
