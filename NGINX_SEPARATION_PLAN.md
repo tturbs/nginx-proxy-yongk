@@ -1,61 +1,47 @@
-# Nginx 분리 계획서
+# Nginx 분리 완료 보고서
 
 ## 개요
 
-`basketball-scoreboard` 프로젝트에서 Nginx를 분리하여 독립적인 리버스 프록시 서버로 구성합니다.
+`basketball-scoreboard` 프로젝트에서 Nginx를 분리하여 독립적인 리버스 프록시 서버로 구성했습니다.
 이를 통해 여러 도메인(`basketball-scoreboard.duckdns.org`, `commuzz.duckdns.org`)을 중앙에서 관리합니다.
 
 **실행 서버:** `yongk.duckdns.org` (SSH 접속)
+**완료일:** 2025-11-29
 
-## 현재 서버 상태 (2024-11-29 확인)
+## 현재 서버 상태
 
 ### 실행 중인 컨테이너
-| 컨테이너 | 이미지 | 상태 | 포트 |
+| 컨테이너 | 이미지 | 역할 | 포트 |
 |----------|--------|------|------|
-| basketball-nginx | nginx:alpine | Up 6 days | 80, 443 |
-| basketball-frontend | basketball-scoreboard-frontend | Up 6 days | - |
-| basketball-backend | basketball-scoreboard-backend | Up 6 days (unhealthy) | 3000 |
-| basketball-certbot | basketball-scoreboard-certbot | Exited | - |
+| nginx-proxy | nginx:alpine | 리버스 프록시 | 80, 443 |
+| nginx-certbot | nginx-proxy-yongk-certbot | SSL 인증서 갱신 | - |
+| basketball-backend | basketball-scoreboard-backend | API 서버 | 3000 (internal) |
+| basketball-frontend | basketball-scoreboard-frontend | 정적 파일 빌드 | - |
 
 ### 네트워크
-- `basketball-scoreboard_basketball-network` (bridge)
+- `shared-network` (external, bridge)
 
 ### 볼륨
-- `basketball-scoreboard_frontend-build` (프론트엔드 빌드 파일)
+| 볼륨 | 용도 |
+|------|------|
+| `basketball-scoreboard_frontend-build` | 프론트엔드 빌드 파일 |
+| `basketball-scoreboard_uploads` | 플레이어 사진 업로드 |
 
 ## 현재 구조
 
 ```
-~/workspace/basketball-scoreboard/
-├── docker-compose.yml      # nginx, certbot 포함
-├── nginx.conf              # basketball 전용 설정
-├── certbot/
-│   └── conf/               # SSL 인증서
-└── ...
-```
-
-**문제점:**
-- Nginx가 basketball 프로젝트에 종속됨
-- 새 도메인 추가 시 basketball 프로젝트 수정 필요
-- 여러 프로젝트에서 80/443 포트 충돌
-
-## 목표 구조
-
-```
-nginx-proxy-yongk/          # 새로운 중앙 Nginx 프로젝트
+nginx-proxy-yongk/              # 중앙 Nginx 프록시
 ├── docker-compose.yml
-├── nginx.conf              # 모든 도메인 설정
+├── nginx.conf                  # 모든 도메인 설정
 ├── certbot/
 │   ├── Dockerfile
-│   └── conf/               # 모든 SSL 인증서
-└── sites/                  # 도메인별 설정 (선택사항)
+│   ├── duckdns.ini
+│   └── conf/                   # SSL 인증서
+└── NGINX_SEPARATION_PLAN.md
 
-basketball-scoreboard/      # Nginx 제거됨
-├── docker-compose.yml      # backend, frontend만 포함
-└── ...
-
-commuzz/                    # 추후 추가될 프로젝트
-├── docker-compose.yml
+basketball-scoreboard/          # Nginx 제거됨
+├── docker-compose.yml          # backend, frontend만 포함
+├── nginx.conf                  # (사용 안함, 백업용)
 └── ...
 ```
 
@@ -63,42 +49,38 @@ commuzz/                    # 추후 추가될 프로젝트
 
 | 도메인 | 용도 | 상태 |
 |--------|------|------|
-| basketball-scoreboard.duckdns.org | 농구 스코어보드 | 기존 |
-| commuzz.duckdns.org | Commuzz 서비스 | 신규 추가 예정 |
+| basketball-scoreboard.duckdns.org | 농구 스코어보드 | ✅ 운영 중 |
+| commuzz.duckdns.org | Commuzz 서비스 | 🔜 추가 예정 |
 
 ---
 
-## 서버 실행 계획 (yongk.duckdns.org)
+## 완료된 작업 내역
 
-> **서버 중단 예상 시간:** 약 1-2분
+### 1단계: nginx-proxy-yongk 프로젝트 생성 ✅
 
-### 1단계: nginx-proxy-yongk 프로젝트 배포 (로컬 완료 ✅)
-
-**로컬에서 완료된 작업:**
+**로컬에서 완료:**
 - `docker-compose.yml` 생성
-- `nginx.conf` 생성 (두 도메인 지원)
+- `nginx.conf` 생성 (API prefix `/api/` 지원, uploads 경로 포함)
 - `certbot/` 디렉토리 및 Dockerfile 생성
 
-**서버로 배포:**
+**서버 배포:**
 ```bash
-# 서버에서 실행
-ssh yongk.duckdns.org
 cd ~/workspace
 git clone git@github.com:tturbs/nginx-proxy-yongk.git
 ```
 
-### 2단계: 공유 Docker Network 생성 (서버)
+### 2단계: 공유 Docker Network 생성 ✅
 
 ```bash
-ssh yongk.duckdns.org
 docker network create shared-network
 ```
 
-### 3단계: 기존 인증서 마이그레이션 (서버)
+### 3단계: 기존 인증서 마이그레이션 ✅
 
 ```bash
-# SSL 인증서 복사
-cp -r ~/workspace/basketball-scoreboard/certbot/conf ~/workspace/nginx-proxy-yongk/certbot/
+# SSL 인증서 복사 (sudo 필요)
+sudo cp -r ~/workspace/basketball-scoreboard/certbot/conf ~/workspace/nginx-proxy-yongk/certbot/
+sudo chown -R $USER:$USER ~/workspace/nginx-proxy-yongk/certbot/conf
 
 # DuckDNS 토큰 복사
 cp ~/workspace/basketball-scoreboard/certbot/duckdns.ini ~/workspace/nginx-proxy-yongk/certbot/
@@ -106,27 +88,38 @@ mkdir -p ~/workspace/nginx-proxy-yongk/certbot/conf/.secrets
 cp ~/workspace/nginx-proxy-yongk/certbot/duckdns.ini ~/workspace/nginx-proxy-yongk/certbot/conf/.secrets/
 ```
 
-### 4단계: basketball-scoreboard docker-compose.yml 수정 (서버)
+### 4단계: basketball-scoreboard docker-compose.yml 수정 ✅
 
 **변경 사항:**
 - `nginx` 서비스 제거
 - `certbot` 서비스 제거
 - 네트워크를 `shared-network` (external)로 변경
+- `uploads` 볼륨 유지
 
+**배포 방법:**
 ```bash
-# 수정된 docker-compose.yml 배포 (로컬에서)
-scp ~/workspace/basketball-scoreboard/docker-compose.yml yongk.duckdns.org:~/workspace/basketball-scoreboard/
+# 로컬에서 수정 후 push
+git add docker-compose.yml
+git commit -m "refactor: separate nginx into external proxy project"
+git push
+
+# 서버에서 pull
+ssh yongk.duckdns.org
+cd ~/workspace/basketball-scoreboard
+git checkout master
+git pull
 ```
 
-### 5단계: 서비스 전환 (서버) ⚠️ 서비스 중단 구간
+### 5단계: 서비스 전환 ✅
 
 ```bash
-# 1. 기존 서비스 중지 (모든 컨테이너 정지)
+# 1. 기존 서비스 중지
 cd ~/workspace/basketball-scoreboard
 docker-compose down
 
-# 2. 공유 네트워크가 생성되었는지 확인
-docker network ls | grep shared-network
+# 2. 기존 nginx/certbot 컨테이너 제거
+docker stop basketball-nginx basketball-certbot
+docker rm basketball-nginx basketball-certbot
 
 # 3. basketball-scoreboard 재시작 (nginx 없이)
 docker-compose up -d
@@ -134,12 +127,9 @@ docker-compose up -d
 # 4. nginx-proxy 시작
 cd ~/workspace/nginx-proxy-yongk
 docker-compose up -d
-
-# 5. 상태 확인
-docker ps
 ```
 
-### 6단계: 검증
+### 6단계: 검증 ✅
 
 ```bash
 # 컨테이너 상태 확인
@@ -150,13 +140,19 @@ docker logs nginx-proxy
 
 # 외부에서 접속 테스트
 curl -I https://basketball-scoreboard.duckdns.org
+curl -s https://basketball-scoreboard.duckdns.org/api/games | head
 ```
 
-- [ ] https://basketball-scoreboard.duckdns.org 접속 확인
-- [ ] SSL 인증서 유효성 확인
-- [ ] API 동작 확인 (/games, /players)
+**검증 결과:**
+- [x] https://basketball-scoreboard.duckdns.org 접속 확인 (HTTP/2 200)
+- [x] SSL 인증서 유효성 확인
+- [x] API 동작 확인 (/api/games, /api/players)
 
-### 7단계: commuzz.duckdns.org SSL 인증서 발급 (추후)
+---
+
+## 새 도메인 추가 방법 (commuzz.duckdns.org)
+
+### 1. SSL 인증서 발급
 
 ```bash
 docker exec -it nginx-certbot certbot certonly \
@@ -166,40 +162,18 @@ docker exec -it nginx-certbot certbot certonly \
   --email your@email.com
 ```
 
----
+### 2. nginx.conf 수정
 
-## 빠른 실행 스크립트
+`nginx.conf`에서 commuzz 섹션 주석 해제 및 설정
 
-서버에서 한 번에 실행할 수 있는 스크립트:
+### 3. docker-compose.yml 수정
+
+필요한 볼륨 추가 (예: commuzz-frontend)
+
+### 4. Nginx 재시작
 
 ```bash
-#!/bin/bash
-set -e
-
-echo "=== 1. 공유 네트워크 생성 ==="
-docker network create shared-network || true
-
-echo "=== 2. 인증서 마이그레이션 ==="
-cp -r ~/workspace/basketball-scoreboard/certbot/conf ~/workspace/nginx-proxy-yongk/certbot/
-cp ~/workspace/basketball-scoreboard/certbot/duckdns.ini ~/workspace/nginx-proxy-yongk/certbot/
-mkdir -p ~/workspace/nginx-proxy-yongk/certbot/conf/.secrets
-cp ~/workspace/nginx-proxy-yongk/certbot/duckdns.ini ~/workspace/nginx-proxy-yongk/certbot/conf/.secrets/
-
-echo "=== 3. 기존 서비스 중지 ==="
-cd ~/workspace/basketball-scoreboard
-docker-compose down
-
-echo "=== 4. basketball-scoreboard 재시작 ==="
-docker-compose up -d
-
-echo "=== 5. nginx-proxy 시작 ==="
-cd ~/workspace/nginx-proxy-yongk
-docker-compose up -d
-
-echo "=== 6. 상태 확인 ==="
-docker ps
-
-echo "=== 완료! ==="
+docker-compose restart nginx
 ```
 
 ---
@@ -211,8 +185,8 @@ echo "=== 완료! ==="
                     │           shared-network                │
                     │                                         │
    Internet         │  ┌─────────────┐                        │
-       │            │  │   nginx     │                        │
-       │            │  │   :80/:443  │                        │
+       │            │  │ nginx-proxy │                        │
+       │            │  │  :80/:443   │                        │
        ▼            │  └──────┬──────┘                        │
    ┌───────┐        │         │                               │
    │ :80   │◄───────┼─────────┤                               │
@@ -240,9 +214,9 @@ echo "=== 완료! ==="
 cd ~/workspace/nginx-proxy-yongk
 docker-compose down
 
-# 2. basketball-scoreboard의 docker-compose.yml 원복 (git checkout)
+# 2. basketball-scoreboard의 docker-compose.yml 원복
 cd ~/workspace/basketball-scoreboard
-git checkout docker-compose.yml
+git checkout HEAD~1 -- docker-compose.yml
 
 # 3. 기존 방식으로 재시작
 docker-compose up -d
@@ -256,6 +230,11 @@ docker-compose up -d
 |------|------|
 | `nginx-proxy-yongk/docker-compose.yml` | 신규 생성 |
 | `nginx-proxy-yongk/nginx.conf` | 신규 생성 |
-| `nginx-proxy-yongk/certbot/Dockerfile` | 복사 |
+| `nginx-proxy-yongk/certbot/Dockerfile` | 신규 생성 |
 | `basketball-scoreboard/docker-compose.yml` | nginx, certbot 제거 |
-| `basketball-scoreboard/nginx.conf` | 삭제 가능 (백업 권장) |
+| `basketball-scoreboard/nginx.conf` | 사용 안함 (백업용) |
+
+## 관련 커밋
+
+- **basketball-scoreboard:** `refactor: separate nginx into external proxy project`
+- **nginx-proxy-yongk:** `feat: add uploads volume and update nginx config`
