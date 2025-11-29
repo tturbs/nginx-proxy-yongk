@@ -10,7 +10,6 @@ services:
       - ./certbot/conf:/etc/letsencrypt:ro
       - basketball-frontend:/usr/share/nginx/basketball:ro
       - basketball-uploads:/usr/share/nginx/basketball-uploads:ro
-      # - commuzz-frontend:/usr/share/nginx/commuzz:ro  # 추후 활성화
     depends_on:
       - certbot
     restart: unless-stopped
@@ -23,12 +22,8 @@ services:
     container_name: nginx-certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt
-    command: >
-      sh -c "chmod 600 /root/.secrets/duckdns.ini && \
-             while true; do \
-               certbot renew --quiet; \
-               sleep 12h; \
-             done"
+      - ./certbot/run.sh:/etc/letsencrypt/run.sh
+    entrypoint: ["/bin/sh", "/etc/letsencrypt/run.sh"]
     networks:
       - shared-network
     dns:
