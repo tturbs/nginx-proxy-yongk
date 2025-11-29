@@ -81,8 +81,10 @@ commuzz/                    # 추후 추가될 프로젝트
 
 **서버로 배포:**
 ```bash
-# 로컬에서 실행
-scp -r ~/workspace/nginx-proxy-yongk yongk.duckdns.org:~/workspace/
+# 서버에서 실행
+ssh yongk.duckdns.org
+cd ~/workspace
+git clone git@github.com:tturbs/nginx-proxy-yongk.git
 ```
 
 ### 2단계: 공유 Docker Network 생성 (서버)
