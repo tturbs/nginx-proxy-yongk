@@ -10,6 +10,7 @@ services:
       - ./certbot/conf:/etc/letsencrypt:ro
       - basketball-frontend:/usr/share/nginx/basketball:ro
       - basketball-uploads:/usr/share/nginx/basketball-uploads:ro
+      - commuzz-frontend:/usr/share/nginx/commuzz:ro
     depends_on:
       - certbot
     restart: unless-stopped
@@ -40,3 +41,6 @@ volumes:
   basketball-uploads:
     external: true
     name: basketball-scoreboard_uploads
+  commuzz-frontend:
+    external: true
+    name: commuzz_frontend-build
