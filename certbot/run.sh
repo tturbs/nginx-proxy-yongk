@@ -5,17 +5,8 @@ set -e
 # DuckDNS credentials file
 CREDENTIALS_FILE="/etc/letsencrypt/.secrets/duckdns.ini"
 
-# Domains
-DOMAINS=(
-  "basketball-scoreboard.duckdns.org"
-  "commuzz.duckdns.org"
-)
-
-# Join domains for certbot command
-CERT_DOMAINS=""
-for DOMAIN in "${DOMAINS[@]}"; do
-  CERT_DOMAINS="${CERT_DOMAINS}-d ${DOMAIN} "
-done
+# Domains (space-separated)
+DOMAINS="basketball-scoreboard.duckdns.org commuzz.duckdns.org"
 
 # Issue or renew certificate
 certbot certonly \
@@ -25,7 +16,7 @@ certbot certonly \
   --agree-tos \
   --no-eff-email \
   --expand \
-  ${CERT_DOMAINS}
+  -d $(echo $DOMAINS | sed 's/ / -d /g')
 
 # Renewal loop
 while true; do
