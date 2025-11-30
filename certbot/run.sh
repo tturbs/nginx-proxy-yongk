@@ -12,25 +12,27 @@ echo "CREDENTIALS_FILE: ${CREDENTIALS_FILE}"
 DOMAINS="basketball-scoreboard.duckdns.org commuzz.duckdns.org"
 echo "DOMAINS: ${DOMAINS}"
 
-# Build the -d arguments for certbot
-CERT_DOMAINS=""
+# First, try to renew any existing certificates
+certbot renew --non-interactive
+
+# Then, issue certificates for any domains that don't have one
 for DOMAIN in $DOMAINS; do
-  CERT_DOMAINS="$CERT_DOMAINS -d $DOMAIN"
+  if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+    echo "Attempting to issue certificate for $DOMAIN..."
+    certbot certonly \
+      --authenticator dns-duckdns \
+      --dns-duckdns-credentials "${CREDENTIALS_FILE}" \
+      --email yonguk.ids@gmail.com \
+      --agree-tos \
+      --dns-duckdns-propagation-seconds 60 \
+      --non-interactive \
+      -d "$DOMAIN"
+    echo "Certificate issuance attempt for $DOMAIN finished."
+  else
+    echo "Certificate for $DOMAIN already exists."
+  fi
 done
-echo "CERT_DOMAINS: ${CERT_DOMAINS}"
 
-echo "Attempting to issue certificates..."
-# Issue certificates
-certbot certonly \
-  --authenticator dns-duckdns \
-  --dns-duckdns-credentials "${CREDENTIALS_FILE}" \
-  --email yonguk.ids@gmail.com \
-  --agree-tos \
-  --dns-duckdns-propagation-seconds 60 \
-  $CERT_DOMAINS
-
-echo "Certificate issuance attempt finished."
 ls -lR /etc/letsencrypt/
 
-echo "Script finished. Sleeping for 300 seconds for inspection."
-sleep 300
+echo "Script finished."
